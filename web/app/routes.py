@@ -1,4 +1,4 @@
-from app import app, db, queue_client
+from app import app, db, queue_client,redis_connection
 from datetime import datetime
 from app.models import Attendee, Conference, Notification
 from flask import render_template, session, request, redirect, url_for, flash, make_response, session
@@ -6,6 +6,8 @@ from azure.servicebus import Message
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import logging
+import redis
+
 
 @app.route('/')
 def index():
@@ -30,16 +32,20 @@ def registration():
         try:
             db.session.add(attendee)
             db.session.commit()
-            session['message'] = 'Thank you, {} {}, for registering!'.format(attendee.first_name, attendee.last_name)
+            user_message = 'Thank you, {} {}, for registering!'.format(attendee.first_name, attendee.last_name)
+            redis_connection.set('message',user_message)
+            logging.info('A key message with {} is inserted into the redis cache'.format(user_message))
             return redirect('/Registration')
         except:
             logging.error('Error occured while saving your information')
 
     else:
-        if 'message' in session:
-            message = session['message']
-            session.pop('message', None)
-            return render_template('registration.html', message=message)
+        user_message = redis_connection.get('message')
+        logging.info('Value for the key message is {}'.format(user_message))
+        if user_message:
+            redis_connection.delete('message')
+            logging.info('Key message deleted from cache')
+            return render_template('registration.html', message=user_message)
         else:
              return render_template('registration.html')
 
@@ -66,25 +72,13 @@ def notification():
         try:
             db.session.add(notification)
             db.session.commit()
-
-            ##################################################
-            ## TODO: Refactor This logic into an Azure Function
-            ## Code below will be replaced by a message queue
-            #################################################
-            attendees = Attendee.query.all()
-
-            for attendee in attendees:
-                subject = '{}: {}'.format(attendee.first_name, notification.subject)
-                send_email(attendee.email, subject, notification.message)
-
-            notification.completed_date = datetime.utcnow()
-            notification.status = 'Notified {} attendees'.format(len(attendees))
-            db.session.commit()
+            #notification.completed_date = datetime.utcnow()
+            #notification.status = 'Notified {} attendees'.format(len(attendees))
             # TODO Call servicebus queue_client to enqueue notification ID
-
-            #################################################
-            ## END of TODO
-            #################################################
+            notification_message = Message(str(notification.id))
+            queue_sender = queue_client.get_sender()
+            sender_response = queue_sender.send(notification_message)
+            logging.info('queue_sender response :',sender_response)
 
             return redirect('/Notifications')
         except :
