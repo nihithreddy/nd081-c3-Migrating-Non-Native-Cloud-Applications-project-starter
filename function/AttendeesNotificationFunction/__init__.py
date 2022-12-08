@@ -10,10 +10,10 @@ def main(msg: func.ServiceBusMessage):
     try:
         notification_id = int(msg.get_body().decode('utf-8'))
         logging.info('Python ServiceBus queue trigger processed message: %s',notification_id)
-        #Get connection to database
+        # Get connection to database
         database_connection = psycopg2.connect(host=os.environ.get("DB_HOST"),database=os.environ.get("DB_NAME"), user=os.environ.get("DB_USER"), password=os.environ.get("DB_PASSWORD" ))
         logging.info('Database connection created succesfully')
-        # TODO: Get notification message and subject from database using the notification_id
+        # Get notification message and subject from database using the notification_id
         cursor = database_connection.cursor()
         notification_select_query = "select message,subject from notification where id = {0};".format(str(notification_id))
         cursor.execute(notification_select_query)
@@ -21,15 +21,15 @@ def main(msg: func.ServiceBusMessage):
         notification_message = notification_record[0]
         notification_subject = notification_record[1]
         logging.info(f"Notification message : {notification_message} Notification subject :{notification_subject}")
-        # TODO: Get attendees email and name
+        # Get attendees email and name
         attendees_select_query = "select email,first_name,last_name from attendee;"
         cursor.execute(attendees_select_query)
         attendees_list = cursor.fetchall()
         logging.info("Total attendees "+str(len(attendees_list)))
         emails_sent_count = 0
-        # TODO: Loop through each attendee and send an email with a personalized subject
+        # Loop through each attendee and send an email with a personalized subject
         for attendee in attendees_list:
-            # TODO : send an email to attendee
+            # send an email to attendee
             attendee_email = attendee[0]
             attendee_first_name = attendee[1]
             attendee_last_name = attendee[2]
@@ -49,7 +49,7 @@ def main(msg: func.ServiceBusMessage):
     except (Exception, psycopg2.DatabaseError) as error:
         logging.error(error)
     finally:
-        # TODO: Close connection
+        # Close connection
         if database_connection:
             cursor.close()
             database_connection.close()
