@@ -143,4 +143,4 @@ cython_debug/
 .DS_Store
 
 #python config file
-/config.py
+config.py
